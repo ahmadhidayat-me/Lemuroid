@@ -102,6 +102,21 @@ android {
             versionNameSuffix = "-DEBUG"
             resValue("string", "lemuroid_name", "LemuroiDebug")
         }
+        // Optimized like release, but installable over the debug app (same id and key) without a release keystore.
+        // Debuggable builds run with CheckJNI and unoptimized code, which skews the performance of heavy cores.
+        create("staging") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-STAGING"
+            signingConfig = signingConfigs["debug"]
+            matchingFallbacks += listOf("release")
+            resValue("string", "lemuroid_name", "LemuroiDebug")
+        }
+    }
+
+    sourceSets {
+        // Build type specific sources (e.g. theme colors) are shared with release.
+        getByName("staging").java.srcDir("src/release/java")
     }
 
     lint {
