@@ -1,7 +1,10 @@
 package com.swordfish.lemuroid.lib.storage
 
 import android.content.Context
+import timber.log.Timber
 import java.io.File
+import java.io.RandomAccessFile
+import java.util.concurrent.ConcurrentHashMap
 
 class DirectoriesManager(private val appContext: Context) {
     @Deprecated("Use the external states directory")
@@ -20,23 +23,103 @@ class DirectoriesManager(private val appContext: Context) {
             mkdirs()
         }
 
-    fun getStatesDirectory(): File =
-        File(appContext.getExternalFilesDir(null), "states").apply {
-            mkdirs()
-        }
+    fun getStatesDirectory(): File = getUserDataDirectory("states")
 
-    fun getStatesPreviewDirectory(): File =
-        File(appContext.getExternalFilesDir(null), "state-previews").apply {
-            mkdirs()
-        }
+    fun getStatesPreviewDirectory(): File = getUserDataDirectory("state-previews")
 
-    fun getSavesDirectory(): File =
-        File(appContext.getExternalFilesDir(null), "saves").apply {
-            mkdirs()
-        }
+    fun getSavesDirectory(): File = getUserDataDirectory("saves")
+
+    fun migrateLegacyUserData() {
+        getSavesDirectory()
+        getStatesDirectory()
+        getStatesPreviewDirectory()
+    }
 
     fun getInternalRomsDirectory(): File =
         File(appContext.getExternalFilesDir(null), "roms").apply {
             mkdirs()
         }
+
+    /**
+     * Saves live in Android/media/<package> so that users can browse and back them up with any file
+     * manager. Android/data (used by older versions) is no longer accessible to them since Android 11.
+     */
+    private fun getUserDataDirectory(name: String): File {
+        val directory = File(getUserDataRoot(), name)
+        migrateLegacyDirectory(File(appContext.getExternalFilesDir(null), name), directory)
+        directory.mkdirs()
+        return directory
+    }
+
+    @Suppress("DEPRECATION")
+    private fun getUserDataRoot(): File {
+        val mediaRoot =
+            appContext.externalMediaDirs.firstOrNull { it != null }
+                ?: return appContext.getExternalFilesDir(null)!!
+
+        // Keep state previews out of the gallery.
+        val noMediaFile = File(mediaRoot.apply { mkdirs() }, NO_MEDIA_FILE_NAME)
+        if (!noMediaFile.exists()) {
+            runCatching { noMediaFile.createNewFile() }
+        }
+        return mediaRoot
+    }
+
+    /** Moves files from the legacy Android/data location once per process. Existing files are never overwritten. */
+    private fun migrateLegacyDirectory(
+        legacyDirectory: File,
+        directory: File,
+    ) {
+        if (legacyDirectory.absolutePath == directory.absolutePath) return
+        if (directory.absolutePath in migratedDirectories) return
+
+        // Callers must not see a half migrated directory, so they wait for the migration to complete.
+        synchronized(migratedDirectories) {
+            if (directory.absolutePath in migratedDirectories) return
+
+            if (legacyDirectory.exists()) {
+                // Main and game processes can both get here, so we also serialize across processes.
+                RandomAccessFile(File(appContext.filesDir, MIGRATION_LOCK_FILE_NAME), "rw").channel.use { channel ->
+                    channel.lock().use {
+                        legacyDirectory.walkBottomUp()
+                            .filter { it.isFile }
+                            .forEach { moveFile(it, File(directory, it.toRelativeString(legacyDirectory))) }
+
+                        legacyDirectory.walkBottomUp()
+                            .filter { it.isDirectory }
+                            .forEach { it.delete() } // Only succeeds on empty directories
+                    }
+                }
+            }
+
+            migratedDirectories.add(directory.absolutePath)
+        }
+    }
+
+    private fun moveFile(
+        source: File,
+        destination: File,
+    ) {
+        if (destination.exists()) {
+            Timber.w("Skipping save migration for $source, destination already exists")
+            return
+        }
+
+        runCatching {
+            destination.parentFile?.mkdirs()
+            if (!source.renameTo(destination)) {
+                val tmpFile = File(destination.parentFile, "${destination.name}.tmp")
+                source.copyTo(tmpFile, overwrite = true)
+                if (!tmpFile.renameTo(destination)) error("Cannot rename $tmpFile")
+                source.delete()
+            }
+        }.onFailure { Timber.e(it, "Error while migrating save file $source") }
+    }
+
+    companion object {
+        private const val NO_MEDIA_FILE_NAME = ".nomedia"
+        private const val MIGRATION_LOCK_FILE_NAME = "saves_migration.lock"
+
+        private val migratedDirectories: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    }
 }
