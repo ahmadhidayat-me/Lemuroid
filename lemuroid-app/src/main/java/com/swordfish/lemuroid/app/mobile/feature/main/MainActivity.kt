@@ -19,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -50,6 +51,7 @@ import com.swordfish.lemuroid.app.mobile.feature.shortcuts.ShortcutsGenerator
 import com.swordfish.lemuroid.app.mobile.feature.systems.MetaSystemsScreen
 import com.swordfish.lemuroid.app.mobile.feature.systems.MetaSystemsViewModel
 import com.swordfish.lemuroid.app.mobile.shared.compose.ui.AppTheme
+import com.swordfish.lemuroid.app.mobile.shared.compose.ui.LemuroidAppTheme
 import com.swordfish.lemuroid.app.shared.GameInteractor
 import com.swordfish.lemuroid.app.shared.game.BaseGameActivity
 import com.swordfish.lemuroid.app.shared.game.GameLauncher
@@ -75,6 +77,7 @@ import dagger.Provides
 import de.charlex.compose.material3.HtmlText
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 @OptIn(DelicateCoroutinesApi::class)
@@ -126,10 +129,39 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
         }
     }
 
+    @Composable
+    private fun selectedAppTheme(): LemuroidAppTheme {
+        val preferences = remember { SharedPreferencesHelper.getSharedPreferences(applicationContext) }
+        val key = stringResource(R.string.pref_key_app_theme)
+        val themes =
+            remember(key) {
+                FlowSharedPreferences(preferences)
+                    .getString(key, LemuroidAppTheme.DEFAULT.key)
+                    .asFlow()
+                    .map { LemuroidAppTheme.fromKey(it) }
+            }
+        // Read the current value synchronously, so the first frame already uses the right theme.
+        val initial = remember(key) { LemuroidAppTheme.fromKey(preferences.getString(key, null)) }
+        return themes.collectAsState(initial).value
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun MainScreen(navController: NavHostController) {
-        AppTheme {
+        val appTheme = selectedAppTheme()
+
+        // Status and navigation bar icons must stay readable on light themes.
+        LaunchedEffect(appTheme) {
+            val barStyle =
+                if (appTheme.isDark) {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                }
+            enableEdgeToEdge(barStyle, barStyle)
+        }
+
+        AppTheme(darkTheme = appTheme.isDark, appTheme = appTheme) {
             val navBackStackEntry = navController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry.value?.destination
             val currentRoute =

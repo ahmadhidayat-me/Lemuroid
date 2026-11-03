@@ -13,6 +13,7 @@ import androidx.navigation.NavController
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.main.MainRoute
 import com.swordfish.lemuroid.app.mobile.feature.main.navigateToRoute
+import com.swordfish.lemuroid.app.mobile.shared.compose.ui.LemuroidAppTheme
 import com.swordfish.lemuroid.app.shared.library.LibraryIndexScheduler
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidCardSettingsGroup
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidSettingsList
@@ -53,6 +54,7 @@ fun SettingsScreen(
             indexingInProgress = indexingInProgress,
             scanInProgress = scanInProgress,
         )
+        AppearanceSettings()
         GeneralSettings()
         InputSettings(navController = navController)
         MiscSettings(
@@ -129,6 +131,24 @@ private fun InputSettings(navController: NavController) {
                 Text(text = stringResource(id = R.string.settings_description_gamepad_settings))
             },
             onClick = { navController.navigateToRoute(MainRoute.SETTINGS_INPUT_DEVICES) },
+        )
+    }
+}
+
+@Composable
+private fun AppearanceSettings() {
+    LemuroidCardSettingsGroup(
+        title = { Text(text = stringResource(id = R.string.settings_category_appearance)) },
+    ) {
+        LemuroidSettingsList(
+            state =
+                indexPreferenceState(
+                    R.string.pref_key_app_theme,
+                    LemuroidAppTheme.DEFAULT.key,
+                    stringListResource(R.array.pref_key_app_theme_values).toList(),
+                ),
+            title = { Text(text = stringResource(id = R.string.settings_title_app_theme)) },
+            items = stringListResource(R.array.pref_key_app_theme_display_names),
         )
     }
 }

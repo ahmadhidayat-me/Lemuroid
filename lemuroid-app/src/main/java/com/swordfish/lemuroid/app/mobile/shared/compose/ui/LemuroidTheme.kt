@@ -75,14 +75,18 @@ private val DarkColorScheme =
         scrim = md_theme_dark_scrim,
     )
 
+/** [appTheme] is only chosen by the user for the main menu; games and their menus keep the default one. */
 @Composable
 fun AppTheme(
     darkTheme: Boolean = true,
+    appTheme: LemuroidAppTheme = LemuroidAppTheme.DEFAULT,
     content: @Composable () -> Unit,
 ) {
     val dynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colors =
         when {
+            appTheme == LemuroidAppTheme.RETRO -> RetroColorScheme
+            appTheme == LemuroidAppTheme.LIGHT -> DaylightColorScheme
             dynamicColor && darkTheme -> dynamicDarkColorScheme(LocalContext.current)
             dynamicColor && !darkTheme -> dynamicLightColorScheme(LocalContext.current)
             darkTheme -> DarkColorScheme

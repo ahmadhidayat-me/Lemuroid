@@ -29,6 +29,7 @@
     <string name="pref_key_shader_filter" translatable="false">shader_filter_0</string>
     <string name="pref_key_hd_mode" translatable="false">hd_mode</string>
     <string name="pref_key_viewport_alignment" translatable="false">viewport_alignment</string>
+    <string name="pref_key_app_theme" translatable="false">app_theme</string>
 
     <string-array translatable="false" name="pref_key_haptic_feedback_mode_values">
         <item>none</item>
@@ -62,6 +63,19 @@
         <item>top</item>
         <item>center</item>
         <item>bottom</item>
+    </string-array>
+
+    <!-- Must match LemuroidAppTheme keys. -->
+    <string-array translatable="false" name="pref_key_app_theme_values">
+        <item>default</item>
+        <item>retro</item>
+        <item>light</item>
+    </string-array>
+
+    <string-array translatable="false" name="pref_key_app_theme_display_names">
+        <item>@string/app_theme_names_default</item>
+        <item>@string/app_theme_names_retro</item>
+        <item>@string/app_theme_names_light</item>
     </string-array>
 
     <string-array translatable="false" name="pref_key_viewport_alignment_display_names">
