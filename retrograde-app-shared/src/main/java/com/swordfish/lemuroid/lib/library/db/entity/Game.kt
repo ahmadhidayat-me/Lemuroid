@@ -51,10 +51,12 @@ data class Game(
     val isFavorite: Boolean = false,
     val customName: String? = null,
     val customCoverUri: String? = null,
+    // Image found next to the rom file with the same name (e.g. "Game.zip" -> "Game.png").
+    val localCoverUri: String? = null,
 ) : Serializable {
 
     fun displayName(): String = customName ?: title
-    fun displayCoverUrl(): String? = customCoverUri ?: coverFrontUrl
+    fun displayCoverUrl(): String? = customCoverUri ?: localCoverUri ?: coverFrontUrl
 
     companion object {
         val DIFF_CALLBACK =

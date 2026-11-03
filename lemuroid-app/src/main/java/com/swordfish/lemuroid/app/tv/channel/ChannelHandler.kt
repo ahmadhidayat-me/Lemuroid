@@ -161,8 +161,9 @@ class ChannelHandler(
                 .setType(TvContractCompat.PreviewPrograms.TYPE_GAME)
                 .setPosterArtAspectRatio(TvContractCompat.PreviewProgramColumns.ASPECT_RATIO_1_1)
 
-        val coverUrl = game.displayCoverUrl()
-        if (coverUrl != null && (game.customCoverUri != null || thumbnailExists)) {
+        // Local covers (custom or next to the rom) can't be read by the launcher, so we only use remote ones.
+        val coverUrl = game.coverFrontUrl
+        if (coverUrl != null && thumbnailExists) {
             preview.setPosterArtUri(Uri.parse(coverUrl))
         } else {
             preview.setPosterArtUri(Uri.parse(CoverUtils.getFallbackRemoteUrl(game)))

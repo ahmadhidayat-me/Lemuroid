@@ -52,11 +52,12 @@ class ShortcutsGenerator(
         withContext(Dispatchers.IO) {
             val result =
                 runCatching {
-                    // Prefer custom cover URI (local file) if set
-                    if (game.customCoverUri != null) {
-                        val uri = Uri.parse(game.customCoverUri)
-                        val inputStream = appContext.contentResolver.openInputStream(uri)
-                        BitmapFactory.decodeStream(inputStream).cropToSquare()
+                    // Prefer local covers (custom or next to the rom) if set
+                    val localCoverUri = game.customCoverUri ?: game.localCoverUri
+                    if (localCoverUri != null) {
+                        appContext.contentResolver.openInputStream(Uri.parse(localCoverUri)).use {
+                            BitmapFactory.decodeStream(it).cropToSquare()
+                        }
                     } else {
                         val response = thumbnailsApi.downloadThumbnail(game.coverFrontUrl!!)
                         BitmapFactory.decodeStream(response.body()).cropToSquare()

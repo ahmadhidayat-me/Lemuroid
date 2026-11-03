@@ -7,7 +7,13 @@ import com.swordfish.lemuroid.lib.storage.GroupedStorageFiles
 import com.swordfish.lemuroid.lib.storage.StorageProvider
 
 object StorageFilesMerger {
-    /** Merge files which belong to the same game. This includes bin/cue files and m3u playlists.*/
+    private const val COVER_EXTENSION = "png"
+
+    /**
+     * Merge files which belong to the same game. This includes bin/cue files and m3u playlists.
+     * Files are expected to come from the same directory, which also allows us to attach
+     * cover images with the same name as the game (e.g. "Game.zip" + "Game.png").
+     */
     fun mergeDataFiles(
         storageProvider: StorageProvider,
         files: List<BaseStorageFile>,
@@ -22,8 +28,34 @@ object StorageFilesMerger {
         mergeM3UPlaylists(allFiles, storageProvider)
         removeInvalidM3UPlaylists(allFiles, storageProvider)
 
-        return allFiles.map { GroupedStorageFiles(it.key, it.value) }
+        return attachCoverFiles(allFiles.map { GroupedStorageFiles(it.key, it.value) })
     }
+
+    private fun attachCoverFiles(groups: List<GroupedStorageFiles>): List<GroupedStorageFiles> {
+        val (coverGroups, otherGroups) =
+            groups.partition {
+                it.dataFiles.isEmpty() && it.primaryFile.extension.equals(COVER_EXTENSION, ignoreCase = true)
+            }
+
+        val coversByName = coverGroups.associateBy { baseName(it.primaryFile).lowercase() }
+        val usedCovers = mutableSetOf<GroupedStorageFiles>()
+
+        val result =
+            otherGroups.map { group ->
+                val cover = coversByName[baseName(group.primaryFile).lowercase()]
+                if (cover != null) {
+                    usedCovers.add(cover)
+                    group.copy(coverFile = cover.primaryFile)
+                } else {
+                    group
+                }
+            }
+
+        // Images not matching any game are kept, so they are still handled as before.
+        return result + (coverGroups - usedCovers)
+    }
+
+    private fun baseName(file: BaseStorageFile): String = file.name.substringBeforeLast('.')
 
     private fun removeInvalidM3UPlaylists(
         allFiles: MutableMap<BaseStorageFile, List<BaseStorageFile>>,

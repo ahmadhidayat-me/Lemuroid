@@ -137,7 +137,12 @@ class LemuroidLibrary(
     ) {
         val updatedGames =
             entries
-                .map { it.game.copy(lastIndexedAt = startedAtMs) }
+                .map {
+                    it.game.copy(
+                        lastIndexedAt = startedAtMs,
+                        localCoverUri = it.file.coverFile?.uri?.toString(),
+                    )
+                }
 
         updatedGames
             .forEach { Timber.d("Updating game: $it") }
@@ -305,6 +310,7 @@ class LemuroidLibrary(
             developer = gameMetadata.developer,
             coverFrontUrl = gameMetadata.thumbnail,
             lastIndexedAt = lastIndexedAt,
+            localCoverUri = groupedStorageFile.coverFile?.uri?.toString(),
         )
     }
 
