@@ -24,6 +24,7 @@ import androidx.documentfile.provider.DocumentFile
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.PushbackInputStream
 import java.security.MessageDigest
@@ -69,7 +70,7 @@ fun ZipInputStream.extractEntryToFile(
 ) {
     this.use { inputStream ->
         while (true) {
-            val entry = inputStream.nextEntry
+            val entry = inputStream.nextEntry ?: throw FileNotFoundException("Missing zip entry: $entryName")
             if (entry.name == entryName) break
         }
         inputStream.writeToFile(gameFile)

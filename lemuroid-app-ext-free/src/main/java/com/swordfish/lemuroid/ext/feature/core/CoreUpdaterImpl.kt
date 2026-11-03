@@ -45,6 +45,8 @@ class CoreUpdaterImpl(
     // This is the last tagged versions of cores.
     companion object {
         private const val CORES_VERSION = "1.17.0"
+
+        private val ELF_MAGIC = byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte())
     }
 
     private val baseUri = Uri.parse("https://github.com/Swordfish90/LemuroidCores/")
@@ -124,7 +126,25 @@ class CoreUpdaterImpl(
             throw Exception(response.errorBody()?.string() ?: "Download error")
         }
 
-        response.body()?.writeToFile(destFile)
+        val body = response.body() ?: throw Exception("Empty core download for $uri")
+
+        // Download to a temporary file, so an interrupted download never leaves a broken library behind
+        // (destFile.exists() is used to skip downloads).
+        val tmpFile = File(destFile.parentFile, "${destFile.name}.tmp")
+        try {
+            body.writeToFile(tmpFile)
+            if (!isElfLibrary(tmpFile)) throw Exception("Downloaded core is not a valid library: $uri")
+            if (!tmpFile.renameTo(destFile)) throw Exception("Cannot rename $tmpFile")
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    private fun isElfLibrary(file: File): Boolean {
+        if (file.length() < ELF_MAGIC.size) return false
+        val header = ByteArray(ELF_MAGIC.size)
+        file.inputStream().use { it.read(header) }
+        return header.contentEquals(ELF_MAGIC)
     }
 
     private suspend fun findBundledLibrary(

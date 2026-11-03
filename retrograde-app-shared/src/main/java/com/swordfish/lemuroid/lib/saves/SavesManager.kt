@@ -8,6 +8,7 @@ import com.swordfish.lemuroid.lib.saves.migrators.getSavesMigrator
 import com.swordfish.lemuroid.lib.storage.DirectoriesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 import java.io.File
 
 class SavesManager(private val directoriesManager: DirectoriesManager) {
@@ -30,11 +31,12 @@ class SavesManager(private val directoriesManager: DirectoriesManager) {
         }
     }
 
+    /** Returns false if the data could not be written, so that callers can warn the user. */
     suspend fun setSaveRAM(
         game: Game,
         data: ByteArray,
-    ) {
-        withContext(Dispatchers.IO) {
+    ): Boolean {
+        return withContext(Dispatchers.IO) {
             val result =
                 runCatchingWithRetry(FILE_ACCESS_RETRIES) {
                     if (data.isEmpty()) {
@@ -44,7 +46,8 @@ class SavesManager(private val directoriesManager: DirectoriesManager) {
                     val saveFile = getSaveFile(getSaveRAMFileName(game))
                     saveFile.writeBytesAtomic(data)
                 }
-            result.getOrNull()
+            result.onFailure { Timber.e(it, "Error while writing save RAM for game ${game.fileName}") }
+            result.isSuccess
         }
     }
 

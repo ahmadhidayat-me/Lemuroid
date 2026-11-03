@@ -54,9 +54,7 @@ object Migrations {
             }
         }
 
-    private fun migrateGamesTableToVersion10(
-        database: SupportSQLiteDatabase,
-    ) {
+    private fun migrateGamesTableToVersion10(database: SupportSQLiteDatabase) {
         database.execSQL(
             "ALTER TABLE games ADD COLUMN customName TEXT DEFAULT NULL",
         )
@@ -70,6 +68,19 @@ object Migrations {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "ALTER TABLE games ADD COLUMN localCoverUri TEXT DEFAULT NULL",
+                )
+            }
+        }
+
+    // Thumbnails are now always fetched over https, so cleartext traffic is no longer allowed.
+    val VERSION_11_12: Migration =
+        object : Migration(11, 12) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                val httpHost = "http://thumbnails.libretro.com/"
+                val httpsHost = "https://thumbnails.libretro.com/"
+                database.execSQL(
+                    "UPDATE games SET coverFrontUrl = REPLACE(coverFrontUrl, ?, ?) WHERE coverFrontUrl LIKE ?",
+                    arrayOf(httpHost, httpsHost, "$httpHost%"),
                 )
             }
         }

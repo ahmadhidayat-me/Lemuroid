@@ -13,8 +13,12 @@ import com.swordfish.lemuroid.common.displayToast
 import com.swordfish.lemuroid.lib.library.covers.CustomCoverManager
 import com.swordfish.lemuroid.lib.library.db.RetrogradeDatabase
 import com.swordfish.lemuroid.lib.library.db.entity.Game
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class GameInteractor(
     private val activity: BusyActivity,
@@ -24,6 +28,17 @@ class GameInteractor(
     private val gameLauncher: GameLauncher,
     private val customCoverManager: CustomCoverManager,
 ) {
+    // Failures (e.g. an unreadable image picked from a cloud provider) must not crash the app.
+    private val exceptionHandler =
+        CoroutineExceptionHandler { _, throwable ->
+            Timber.e(throwable, "Game action failed")
+            activity.activity().runOnUiThread {
+                activity.activity().displayToast(R.string.game_interactor_action_failed)
+            }
+        }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + exceptionHandler)
+
     fun onGamePlay(game: Game) {
         if (!ensureNotBusy()) {
             return
@@ -48,13 +63,13 @@ class GameInteractor(
         game: Game,
         isFavorite: Boolean,
     ) {
-        GlobalScope.launch {
-            retrogradeDb.gameDao().update(game.copy(isFavorite = isFavorite))
+        scope.launch {
+            retrogradeDb.gameDao().updateFavorite(game.id, isFavorite)
         }
     }
 
     fun onCreateShortcut(game: Game) {
-        GlobalScope.launch {
+        scope.launch {
             shortcutsGenerator.pinShortcutForGame(game)
         }
     }
@@ -63,15 +78,18 @@ class GameInteractor(
         return shortcutsGenerator.supportShortcuts()
     }
 
-    fun onSetCustomName(game: Game, customName: String) {
-        GlobalScope.launch {
-            retrogradeDb.gameDao().update(game.copy(customName = customName))
+    fun onSetCustomName(
+        game: Game,
+        customName: String,
+    ) {
+        scope.launch {
+            retrogradeDb.gameDao().updateCustomName(game.id, customName)
         }
     }
 
     fun onClearCustomName(game: Game) {
-        GlobalScope.launch {
-            retrogradeDb.gameDao().update(game.copy(customName = null))
+        scope.launch {
+            retrogradeDb.gameDao().updateCustomName(game.id, null)
         }
     }
 
@@ -80,10 +98,13 @@ class GameInteractor(
      * the local file URI in the database.  This ensures the cover survives
      * app restarts regardless of where the user picked the file from.
      */
-    fun onSetCustomCoverUri(game: Game, sourceUri: String) {
-        GlobalScope.launch {
+    fun onSetCustomCoverUri(
+        game: Game,
+        sourceUri: String,
+    ) {
+        scope.launch {
             val localUri = customCoverManager.importCover(game.id, Uri.parse(sourceUri))
-            retrogradeDb.gameDao().update(game.copy(customCoverUri = localUri))
+            retrogradeDb.gameDao().updateCustomCoverUri(game.id, localUri)
         }
     }
 
@@ -92,9 +113,9 @@ class GameInteractor(
      * clears the database field.
      */
     fun onClearCustomCoverUri(game: Game) {
-        GlobalScope.launch {
+        scope.launch {
+            retrogradeDb.gameDao().updateCustomCoverUri(game.id, null)
             customCoverManager.deleteCover(game.id)
-            retrogradeDb.gameDao().update(game.copy(customCoverUri = null))
         }
     }
 

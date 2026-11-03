@@ -135,19 +135,18 @@ class LemuroidLibrary(
         entries: List<ScanEntry.GameFile>,
         startedAtMs: Long,
     ) {
-        val updatedGames =
-            entries
-                .map {
-                    it.game.copy(
-                        lastIndexedAt = startedAtMs,
-                        localCoverUri = it.file.coverFile?.uri?.toString(),
-                    )
-                }
-
-        updatedGames
-            .forEach { Timber.d("Updating game: $it") }
-
-        retrogradedb.gameDao().update(updatedGames)
+        // Only indexing columns are touched, so user changes made while indexing (favorites, custom names
+        // and covers) are not overwritten by the snapshot read at the beginning of the batch.
+        retrogradedb.runInTransaction {
+            entries.forEach {
+                Timber.d("Updating game: ${it.game}")
+                retrogradedb.gameDao().updateIndexingInfo(
+                    it.game.id,
+                    startedAtMs,
+                    it.file.coverFile?.uri?.toString(),
+                )
+            }
+        }
     }
 
     private fun updateDataFiles(

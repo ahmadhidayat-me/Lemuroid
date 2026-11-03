@@ -101,7 +101,10 @@ class DirectoriesManager(private val appContext: Context) {
         destination: File,
     ) {
         if (destination.exists()) {
-            Timber.w("Skipping save migration for $source, destination already exists")
+            // Never overwrite, but don't leave the legacy file behind either: it might be the newer one.
+            val backup = File(destination.parentFile, "${destination.name}$LEGACY_BACKUP_SUFFIX")
+            Timber.w("Save migration conflict for $source, keeping it as $backup")
+            if (!backup.exists()) moveFile(source, backup)
             return
         }
 
@@ -123,6 +126,7 @@ class DirectoriesManager(private val appContext: Context) {
     companion object {
         private const val NO_MEDIA_FILE_NAME = ".nomedia"
         private const val MIGRATION_LOCK_FILE_NAME = "saves_migration.lock"
+        private const val LEGACY_BACKUP_SUFFIX = ".android-data-backup"
 
         private val migratedDirectories: MutableSet<String> = ConcurrentHashMap.newKeySet()
     }

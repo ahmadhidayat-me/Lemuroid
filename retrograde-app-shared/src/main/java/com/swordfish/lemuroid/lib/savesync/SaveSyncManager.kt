@@ -18,7 +18,8 @@ abstract class SaveSyncManager {
 
     abstract fun getConfigInfo(): String
 
-    abstract suspend fun sync(cores: Set<CoreID>)
+    /** Returns false if any file could not be synced, so that the caller can retry later. */
+    abstract suspend fun sync(cores: Set<CoreID>): Boolean
 
     abstract fun computeSavesSpace(): String
 

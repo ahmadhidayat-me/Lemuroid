@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 /**
@@ -56,7 +57,13 @@ class ExternalGameLauncherActivity : ImmersiveActivity() {
 
         setContentView(R.layout.activity_loading)
         if (savedInstanceState == null) {
-            val gameId = intent.data?.pathSegments?.let { it[it.size - 1].toInt() }!!
+            // This activity is exported, so the link can come from any app: never trust it.
+            val gameId = intent.data?.pathSegments?.lastOrNull()?.toIntOrNull()
+            if (gameId == null) {
+                Timber.w("Invalid game link: ${intent.data}")
+                displayErrorMessage()
+                return
+            }
 
             lifecycleScope.launch {
                 loadingState.value = true

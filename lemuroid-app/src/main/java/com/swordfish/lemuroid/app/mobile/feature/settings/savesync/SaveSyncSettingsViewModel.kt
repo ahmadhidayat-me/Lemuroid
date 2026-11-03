@@ -9,8 +9,10 @@ import androidx.lifecycle.viewModelScope
 import com.swordfish.lemuroid.app.shared.library.PendingOperationsMonitor
 import com.swordfish.lemuroid.lib.library.CoreID
 import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 
 class SaveSyncSettingsViewModel(
@@ -41,6 +43,8 @@ class SaveSyncSettingsViewModel(
 
     val uiState =
         flow { emit(buildState()) }
+            // Computing sizes walks the save folders (and might wait for their migration), keep it off the UI thread.
+            .flowOn(Dispatchers.IO)
             .stateIn(
                 viewModelScope,
                 SharingStarted.Lazily,

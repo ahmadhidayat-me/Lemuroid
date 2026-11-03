@@ -15,6 +15,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
 import com.swordfish.lemuroid.app.mobile.shared.NotificationsManager
+import com.swordfish.lemuroid.app.shared.game.GameProcessLock
 import com.swordfish.lemuroid.app.utils.android.createSyncForegroundInfo
 import com.swordfish.lemuroid.lib.injection.AndroidWorkerInjection
 import com.swordfish.lemuroid.lib.injection.WorkerKey
@@ -44,6 +45,12 @@ class SaveSyncWork(context: Context, workerParams: WorkerParameters) :
             return Result.success()
         }
 
+        // The game process reads and writes saves while running, syncing now could replace them under its feet.
+        if (GameProcessLock.isHeldByAnotherProcess(applicationContext)) {
+            Timber.i("Postponing saves sync since a game is running")
+            return Result.retry()
+        }
+
         displayNotification()
 
         val coresToSync =
@@ -51,13 +58,19 @@ class SaveSyncWork(context: Context, workerParams: WorkerParameters) :
                 .mapNotNull { findByName(it) }
                 .toSet()
 
-        try {
-            saveSyncManager.sync(coresToSync)
-        } catch (e: Throwable) {
-            Timber.e(e, "Error in saves sync")
-        }
+        val success =
+            try {
+                saveSyncManager.sync(coresToSync)
+            } catch (e: Throwable) {
+                Timber.e(e, "Error in saves sync")
+                false
+            }
 
-        return Result.success()
+        return when {
+            success -> Result.success()
+            runAttemptCount < MAX_SYNC_ATTEMPTS -> Result.retry()
+            else -> Result.failure()
+        }
     }
 
     private suspend fun shouldPerformSaveSync(): Boolean {
@@ -93,6 +106,7 @@ class SaveSyncWork(context: Context, workerParams: WorkerParameters) :
         val UNIQUE_WORK_ID: String = SaveSyncWork::class.java.simpleName
         val UNIQUE_PERIODIC_WORK_ID: String = SaveSyncWork::class.java.simpleName + "Periodic"
         private const val IS_AUTO = "IS_AUTO"
+        private const val MAX_SYNC_ATTEMPTS = 3
 
         fun enqueueManualWork(applicationContext: Context) {
             val inputData: Data = workDataOf(IS_AUTO to false)

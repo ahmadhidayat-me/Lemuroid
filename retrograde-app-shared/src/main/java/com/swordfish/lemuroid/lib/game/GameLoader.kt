@@ -165,9 +165,11 @@ class GameLoader(
                 context.filesDir,
             )
 
+        // filesDir also holds Play split libraries and possibly outdated downloads, so prefer the newest copy.
         return files
             .flatMap { it.walkBottomUp() }
-            .firstOrNull { it.name == coreID.libretroFileName }
+            .filter { it.name == coreID.libretroFileName && it.length() > 0 }
+            .maxByOrNull { it.lastModified() }
     }
 
     @Suppress("ArrayInDataClass")

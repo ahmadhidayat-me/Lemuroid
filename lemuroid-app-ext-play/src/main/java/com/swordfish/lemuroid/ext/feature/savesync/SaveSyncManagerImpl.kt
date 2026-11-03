@@ -56,7 +56,7 @@ class SaveSyncManagerImpl(
         }
     }
 
-    override suspend fun sync(cores: Set<CoreID>): Unit =
+    override suspend fun sync(cores: Set<CoreID>): Boolean =
         withContext(Dispatchers.IO) {
             synchronized(SYNC_LOCK) {
                 val saveSyncResult =
@@ -67,35 +67,46 @@ class SaveSyncManagerImpl(
                 saveSyncResult.onFailure {
                     Timber.e(it, "Error while performing save sync.")
                 }
+                saveSyncResult.getOrDefault(false)
             }
         }
 
-    private fun performSaveSyncForCores(cores: Set<CoreID>) {
-        val drive = DriveFactory(appContext).create() ?: return
+    private fun performSaveSyncForCores(cores: Set<CoreID>): Boolean {
+        val drive = DriveFactory(appContext).create() ?: return false
+        var failures = 0
 
-        syncLocalAndRemoteFolder(
-            drive,
-            getOrCreateAppDataFolder("saves"),
-            directoriesManager.getSavesDirectory(),
-            null,
-        )
+        failures +=
+            syncLocalAndRemoteFolder(
+                drive,
+                getOrCreateAppDataFolder("saves"),
+                directoriesManager.getSavesDirectory(),
+                null,
+            )
 
         if (cores.isNotEmpty()) {
-            syncLocalAndRemoteFolder(
-                drive,
-                getOrCreateAppDataFolder("states"),
-                directoriesManager.getStatesDirectory(),
-                cores.map { it.coreName }.toSet(),
-            )
-            syncLocalAndRemoteFolder(
-                drive,
-                getOrCreateAppDataFolder("state-previews"),
-                directoriesManager.getStatesPreviewDirectory(),
-                cores.map { it.coreName }.toSet(),
-            )
+            failures +=
+                syncLocalAndRemoteFolder(
+                    drive,
+                    getOrCreateAppDataFolder("states"),
+                    directoriesManager.getStatesDirectory(),
+                    cores.map { it.coreName }.toSet(),
+                )
+            failures +=
+                syncLocalAndRemoteFolder(
+                    drive,
+                    getOrCreateAppDataFolder("state-previews"),
+                    directoriesManager.getStatesPreviewDirectory(),
+                    cores.map { it.coreName }.toSet(),
+                )
         }
 
+        // Only a fully successful sync counts as the last sync shown to the user.
+        if (failures > 0) {
+            Timber.w("Save sync completed with $failures failures")
+            return false
+        }
         lastSyncTimestamp = System.currentTimeMillis()
+        return true
     }
 
     override fun computeSavesSpace() = getSizeHumanReadable(directoriesManager.getSavesDirectory())
@@ -115,13 +126,13 @@ class SaveSyncManagerImpl(
         remoteFolderId: String,
         localFolder: File,
         prefixes: Set<String>?,
-    ) {
+    ): Int {
         val remoteFiles = getRemoteFiles(drive, remoteFolderId)
         val remoteFilesMap = buildRemoteFileMap(remoteFiles)
         val localFilesMap = buildLocalFileMap(localFolder)
 
-        getFilteredKeys(remoteFilesMap.keys + localFilesMap.keys, prefixes).forEach {
-            handleFileSync(drive, remoteFolderId, localFolder, remoteFilesMap[it], localFilesMap[it])
+        return getFilteredKeys(remoteFilesMap.keys + localFilesMap.keys, prefixes).count {
+            !handleFileSync(drive, remoteFolderId, localFolder, remoteFilesMap[it], localFilesMap[it])
         }
     }
 
@@ -139,10 +150,10 @@ class SaveSyncManagerImpl(
         localParentFolder: File,
         remoteFile: com.google.api.services.drive.model.File?,
         localFile: File?,
-    ) {
+    ): Boolean {
         Timber.i("Handling file pair: $localFile $remoteFile")
 
-        runCatching {
+        return runCatching {
             if (remoteFile != null && localFile == null) {
                 onRemoteOnly(localParentFolder, remoteFile, drive)
             } else if (remoteFile == null && localFile != null) {
@@ -156,7 +167,8 @@ class SaveSyncManagerImpl(
                     }
                 }
             }
-        }
+        }.onFailure { Timber.e(it, "Error while syncing $localFile / ${remoteFile?.name}") }
+            .isSuccess
     }
 
     private fun areFileDifferent(
@@ -219,13 +231,14 @@ class SaveSyncManagerImpl(
         drive: Drive,
     ) {
         Timber.i("Remote only file detected $remoteFile")
-        val outputFile =
-            File(
-                localParentFolder,
-                remoteFile.appProperties[GDRIVE_PROPERTY_LOCAL_PATH]!!,
-            ).apply {
-                parentFile?.mkdirs()
-            }
+        val localPath =
+            remoteFile.appProperties?.get(GDRIVE_PROPERTY_LOCAL_PATH)
+                ?: throw IllegalStateException("Remote file ${remoteFile.id} has no local path")
+        val outputFile = File(localParentFolder, localPath)
+        if (!outputFile.canonicalPath.startsWith(localParentFolder.canonicalPath + File.separator)) {
+            throw SecurityException("Remote file ${remoteFile.id} points outside of $localParentFolder")
+        }
+        outputFile.parentFile?.mkdirs()
         downloadToLocal(drive, remoteFile, outputFile)
     }
 
@@ -245,10 +258,32 @@ class SaveSyncManagerImpl(
     ) {
         if (remoteFile.size == 0) return
         Timber.i("Downloading file to $localFile")
-        drive.files()
-            .get(remoteFile.id)
-            .executeMediaAndDownloadTo(localFile.outputStream())
-        localFile.setLastModified(remoteFile.modifiedTime.value)
+
+        // Never write directly into the save: an interrupted download would corrupt it and, having a newer
+        // timestamp than the remote copy, it would then be uploaded over the good one.
+        val tmpFile = File(localFile.parentFile, "${localFile.name}.download")
+        try {
+            tmpFile.outputStream().use {
+                drive.files()
+                    .get(remoteFile.id)
+                    .executeMediaAndDownloadTo(it)
+            }
+
+            if (tmpFile.length() != remoteFile.getSize()) {
+                throw IllegalStateException("Incomplete download for ${remoteFile.id}")
+            }
+            val remoteChecksum = remoteFile.md5Checksum
+            if (remoteChecksum != null && remoteChecksum != tmpFile.calculateMd5()) {
+                throw IllegalStateException("Checksum mismatch for ${remoteFile.id}")
+            }
+
+            tmpFile.setLastModified(remoteFile.modifiedTime.value)
+            if (!tmpFile.renameTo(localFile)) {
+                throw IllegalStateException("Cannot replace $localFile")
+            }
+        } finally {
+            tmpFile.delete()
+        }
     }
 
     private fun buildRemoteFileMap(
@@ -264,6 +299,7 @@ class SaveSyncManagerImpl(
         return folder
             .walkBottomUp()
             .filter { it.exists() && !it.isDirectory && it.length() > 0 }
+            .filterNot { it.name.endsWith(".download") || it.name.endsWith(".tmp") }
             .map { it.toRelativeString(folder) to it }
             .toMap()
     }

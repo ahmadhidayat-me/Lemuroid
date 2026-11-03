@@ -11,6 +11,7 @@ import com.swordfish.lemuroid.lib.storage.DirectoriesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import java.io.File
 
 class StatesManager(private val directoriesManager: DirectoriesManager) {
@@ -93,15 +94,19 @@ class StatesManager(private val directoriesManager: DirectoriesManager) {
         }.getOrNull()
     }
 
+    /** Returns false if the state could not be written, so that callers can warn the user. */
     private suspend fun setSaveState(
         fileName: String,
         coreName: String,
         saveState: SaveState,
-    ) {
-        runCatchingWithRetry(FILE_ACCESS_RETRIES) {
-            writeStateToDisk(fileName, coreName, saveState.state)
-            writeMetadataToDisk(fileName, coreName, saveState.metadata)
-        }
+    ): Boolean {
+        val result =
+            runCatchingWithRetry(FILE_ACCESS_RETRIES) {
+                writeStateToDisk(fileName, coreName, saveState.state)
+                writeMetadataToDisk(fileName, coreName, saveState.metadata)
+            }
+        result.onFailure { Timber.e(it, "Error while writing state $fileName for core $coreName") }
+        return result.isSuccess
     }
 
     private fun writeMetadataToDisk(

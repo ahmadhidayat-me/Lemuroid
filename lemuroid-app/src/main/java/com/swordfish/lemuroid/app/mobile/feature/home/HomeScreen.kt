@@ -39,7 +39,6 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onGameClick: (Game) -> Unit,
     onGameLongClick: (Game) -> Unit,
-    onOpenCoreSelection: () -> Unit,
 ) {
     val context = LocalContext.current
     val applicationContext = context.applicationContext
@@ -68,7 +67,6 @@ fun HomeScreen(
         state.value,
         onGameClick,
         onGameLongClick,
-        onOpenCoreSelection,
         {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 return@HomeScreen
@@ -78,7 +76,7 @@ fun HomeScreen(
         },
         { permissionsLauncher.launch(Manifest.permission.RECORD_AUDIO) },
         { viewModel.changeLocalStorageFolder(context) },
-    ) // TODO COMPOSE We need to understand what's going to happen here.
+    )
 }
 
 @Composable
@@ -87,7 +85,6 @@ private fun HomeScreen(
     state: HomeViewModel.UIState,
     onGameClicked: (Game) -> Unit,
     onGameLongClick: (Game) -> Unit,
-    onOpenCoreSelection: () -> Unit,
     onEnableNotificationsClicked: () -> Unit,
     onEnableMicrophoneClicked: () -> Unit,
     onSetDirectoryClicked: () -> Unit,
@@ -122,14 +119,6 @@ private fun HomeScreen(
                 messageId = R.string.home_microphone_message,
                 actionId = R.string.home_microphone_action,
                 onAction = onEnableMicrophoneClicked,
-            )
-        }
-        AnimatedVisibility(state.showDesmumeDeprecatedCard) {
-            HomeNotification(
-                titleId = R.string.home_notification_desmume_deprecated_title,
-                messageId = R.string.home_notification_desmume_deprecated_message,
-                actionId = R.string.home_notification_desmume_deprecated_action,
-                onAction = onOpenCoreSelection,
             )
         }
         HomeRow(

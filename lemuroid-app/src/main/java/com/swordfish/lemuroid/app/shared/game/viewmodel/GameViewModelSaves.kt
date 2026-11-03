@@ -34,14 +34,38 @@ class GameViewModelSaves(
 ) {
     private var currentQuickSave: SaveState? = null
 
+    // Last SRAM content known to be on disk. Used to avoid rewriting (and touching the timestamp of) unchanged saves.
+    @Volatile
+    private var lastPersistedSaveRAM: ByteArray? = null
+
     data class SaveSnapshot(
         val sram: ByteArray,
         val autoSave: SaveState?,
     )
 
+    fun onSaveRAMLoaded(saveRAM: ByteArray?) {
+        lastPersistedSaveRAM = saveRAM
+    }
+
+    /** Persists the in-game save if it changed, so that a crash doesn't lose progress since the game was started. */
+    suspend fun flushSaveRAMIfChanged() {
+        val retroGameView = retroGameView.retroGameView ?: return
+        val sram = retroGameView.serializeSRAM(true)
+        if (sram.isEmpty() || sram.contentEquals(lastPersistedSaveRAM)) return
+
+        Timber.i("Periodic save RAM flush for game %s", game.id)
+        if (savesManager.setSaveRAM(game, sram)) {
+            lastPersistedSaveRAM = sram
+        }
+    }
+
     suspend fun saveSlot(index: Int) {
         getCurrentSaveState()?.let {
-            statesManager.setSlotSave(game, it, systemCoreConfig.coreID, index)
+            val saved = statesManager.setSlotSave(game, it, systemCoreConfig.coreID, index)
+            if (!saved) {
+                sideEffects.showToast(appContext.getString(R.string.game_toast_save_failed))
+                return
+            }
             runCatching {
                 takeScreenshotPreview(index)
             }
@@ -86,8 +110,18 @@ class GameViewModelSaves(
             true,
             snapshot.autoSave != null,
         )
-        savesManager.setSaveRAM(game, snapshot.sram)
-        snapshot.autoSave?.let { statesManager.setAutoSave(game, systemCoreConfig.coreID, it) }
+        val sramSaved = savesManager.setSaveRAM(game, snapshot.sram)
+        if (sramSaved) {
+            lastPersistedSaveRAM = snapshot.sram
+        }
+        val autoSaveSaved =
+            snapshot.autoSave
+                ?.let { statesManager.setAutoSave(game, systemCoreConfig.coreID, it) }
+                ?: true
+
+        if (!sramSaved || !autoSaveSaved) {
+            sideEffects.showToast(appContext.getString(R.string.game_toast_save_failed))
+        }
     }
 
     // On some cores unserialize fails with no reason. So we need to try multiple times.

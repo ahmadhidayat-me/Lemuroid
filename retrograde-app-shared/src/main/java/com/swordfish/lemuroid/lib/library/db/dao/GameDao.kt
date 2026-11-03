@@ -84,6 +84,39 @@ interface GameDao {
 
     @Update
     fun update(games: List<Game>)
+
+    // Single column updates. Writing whole rows from stale Game snapshots would overwrite concurrent changes.
+
+    @Query("UPDATE games SET isFavorite = :isFavorite WHERE id = :id")
+    suspend fun updateFavorite(
+        id: Int,
+        isFavorite: Boolean,
+    )
+
+    @Query("UPDATE games SET customName = :customName WHERE id = :id")
+    suspend fun updateCustomName(
+        id: Int,
+        customName: String?,
+    )
+
+    @Query("UPDATE games SET customCoverUri = :customCoverUri WHERE id = :id")
+    suspend fun updateCustomCoverUri(
+        id: Int,
+        customCoverUri: String?,
+    )
+
+    @Query("UPDATE games SET lastPlayedAt = :lastPlayedAt WHERE id = :id")
+    suspend fun updateLastPlayedAt(
+        id: Int,
+        lastPlayedAt: Long,
+    )
+
+    @Query("UPDATE games SET lastIndexedAt = :lastIndexedAt, localCoverUri = :localCoverUri WHERE id = :id")
+    fun updateIndexingInfo(
+        id: Int,
+        lastIndexedAt: Long,
+        localCoverUri: String?,
+    )
 }
 
 data class SystemCount(val systemId: String, val count: Int)

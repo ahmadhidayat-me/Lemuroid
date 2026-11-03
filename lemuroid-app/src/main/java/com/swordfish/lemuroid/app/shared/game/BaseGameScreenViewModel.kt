@@ -7,6 +7,7 @@ import android.view.MotionEvent
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.unit.Density
 import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -23,6 +24,7 @@ import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
 import com.swordfish.lemuroid.app.shared.settings.ControllerConfigsManager
 import com.swordfish.lemuroid.app.shared.settings.HapticFeedbackMode
+import com.swordfish.lemuroid.common.coroutines.launchOnState
 import com.swordfish.lemuroid.common.longAnimationDuration
 import com.swordfish.lemuroid.lib.controller.ControllerConfig
 import com.swordfish.lemuroid.lib.core.CoreVariablesManager
@@ -182,6 +184,7 @@ class BaseGameScreenViewModel(
         lifecycle: LifecycleOwner,
     ): GLRetroView {
         val (gameData, result) = retroGameView.createRetroView(context, lifecycle)
+        saves.onSaveRAMLoaded(gameData.saveRAMData)
         viewModelScope.launch {
             gameData.quickSaveData?.let {
                 saves.restoreAutoSaveAsync(it)
@@ -288,7 +291,8 @@ class BaseGameScreenViewModel(
         if (loadingState.value) return
         viewModelScope.launch {
             withLoading {
-                val snapshot = saves.captureSaveSnapshot(true) ?: return@launch
+                // A missing snapshot means the game never started, so there is nothing to save but we still exit.
+                val snapshot = saves.captureSaveSnapshot(true)
                 saves.writeSaveSnapshot(snapshot)
                 sideEffects.requestSuccessfulFinish()
             }
@@ -296,7 +300,10 @@ class BaseGameScreenViewModel(
     }
 
     fun requestBackgroundSave() {
-        if (loadingState.value) return
+        if (loadingState.value) {
+            Timber.w("Skipping background save while another operation is in progress")
+            return
+        }
         GameService.schedule {
             val snapshot = saves.captureSaveSnapshot(false)
             saves.writeSaveSnapshot(snapshot)
@@ -314,6 +321,15 @@ class BaseGameScreenViewModel(
         owner.lifecycle.addObserver(inputs)
         owner.lifecycle.addObserver(retroGameView)
         owner.lifecycle.addObserver(touchControls)
+
+        owner.launchOnState(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(SAVE_RAM_FLUSH_INTERVAL_MS)
+                if (loadingState.value) continue
+                runCatching { saves.flushSaveRAMIfChanged() }
+                    .onFailure { Timber.e(it, "Error while flushing save RAM") }
+            }
+        }
     }
 
     fun sendKeyEvent(
@@ -325,5 +341,9 @@ class BaseGameScreenViewModel(
 
     fun sendMotionEvent(event: MotionEvent): Boolean {
         return inputs.sendMotionEvent(event)
+    }
+
+    companion object {
+        private const val SAVE_RAM_FLUSH_INTERVAL_MS = 60_000L
     }
 }

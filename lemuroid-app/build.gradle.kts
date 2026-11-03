@@ -20,7 +20,6 @@ android {
         println("Building Google Play version. Bundling dynamic features.")
         dynamicFeatures.addAll(
             setOf(
-                ":lemuroid_core_desmume",
                 ":lemuroid_core_dosbox_pure",
                 ":lemuroid_core_fbneo",
                 ":lemuroid_core_fceumm",

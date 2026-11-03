@@ -47,15 +47,15 @@ class PPSSPPAssetsManager : CoreID.AssetsManager {
             while (true) {
                 val entry = zipInputStream.nextEntry ?: break
                 Timber.d("Writing file: ${entry.name}")
-                val destFile =
-                    File(
-                        coreAssetsDirectory,
-                        entry.name,
-                    )
+                val destFile = File(coreAssetsDirectory, entry.name)
+                if (!destFile.canonicalPath.startsWith(coreAssetsDirectory.canonicalPath + File.separator)) {
+                    throw SecurityException("Zip entry is outside of the target directory: ${entry.name}")
+                }
                 if (entry.isDirectory) {
                     destFile.mkdirs()
                 } else {
-                    zipInputStream.copyTo(destFile.outputStream())
+                    destFile.parentFile?.mkdirs()
+                    destFile.outputStream().use { zipInputStream.copyTo(it) }
                 }
             }
         }
