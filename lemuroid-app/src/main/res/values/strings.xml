@@ -243,6 +243,9 @@
     <string name="console_layout_hint_open">Open</string>
     <string name="console_layout_hint_select">Select</string>
     <string name="console_layout_hint_menu">Menu</string>
+    <string name="console_layout_hint_play">Play</string>
+    <string name="console_layout_hint_favorite">Favorite</string>
+    <string name="console_layout_hint_back">Back</string>
     <string name="viewport_alignment_names_center">Center</string>
     <string name="viewport_alignment_names_bottom">Bottom</string>
 

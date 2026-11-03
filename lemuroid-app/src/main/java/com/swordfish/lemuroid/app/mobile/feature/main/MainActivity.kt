@@ -26,8 +26,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.fredporciuncula.flow.preferences.FlowSharedPreferences
 import com.swordfish.lemuroid.R
+import com.swordfish.lemuroid.app.mobile.feature.console.ConsoleGameListScreen
 import com.swordfish.lemuroid.app.mobile.feature.console.ConsoleHomeScreen
 import com.swordfish.lemuroid.app.mobile.feature.console.ConsoleMenuEntry
 import com.swordfish.lemuroid.app.mobile.feature.favorites.FavoritesScreen
@@ -232,12 +234,14 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                     .collectAsState(MainViewModel.UiState())
                     .value
 
-            // The console layout home is a full screen carousel with its own menu instead of the app bars.
-            val consoleHome = appLayout == LemuroidAppLayout.CONSOLE && currentRoute == MainRoute.HOME
+            // The console layout never shows the bottom navigation: its screens have their own button hints and
+            // menu. Home, games lists and favorites are full screen, the remaining screens keep their top bar.
+            val consoleLayout = appLayout == LemuroidAppLayout.CONSOLE
+            val consoleFullScreen = consoleLayout && currentRoute in CONSOLE_FULL_SCREEN_ROUTES
 
             Scaffold(
                 topBar = {
-                    if (!consoleHome) {
+                    if (!consoleFullScreen) {
                         MainTopBar(
                             currentRoute = currentRoute,
                             navController = navController,
@@ -248,7 +252,7 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                     }
                 },
                 bottomBar = {
-                    if (!consoleHome) {
+                    if (!consoleLayout) {
                         MainNavigationBar(currentRoute, navController)
                     }
                 },
@@ -259,7 +263,7 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                     startDestination = MainRoute.HOME.route,
                 ) {
                     composable(MainRoute.HOME) {
-                        if (appLayout == LemuroidAppLayout.CONSOLE) {
+                        if (consoleLayout) {
                             val systemsViewModel: MetaSystemsViewModel =
                                 viewModel(factory = MetaSystemsViewModel.Factory(retrogradeDb, applicationContext))
                             ConsoleHomeScreen(
@@ -294,6 +298,19 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                         )
                     }
                     composable(MainRoute.FAVORITES) {
+                        if (consoleLayout) {
+                            val favoritesViewModel: FavoritesViewModel =
+                                viewModel(factory = FavoritesViewModel.Factory(retrogradeDb))
+                            ConsoleGameListScreen(
+                                title = stringResource(R.string.favorites),
+                                games = favoritesViewModel.favorites.collectAsLazyPagingItems(),
+                                onGameClick = onGameClick,
+                                onGameLongClick = onGameLongClick,
+                                onGameFavoriteToggle = onGameFavoriteToggle,
+                                onBack = { navController.popBackStack() },
+                            )
+                            return@composable
+                        }
                         FavoritesScreen(
                             modifier = Modifier.padding(padding),
                             viewModel =
@@ -334,6 +351,20 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                     }
                     composable(MainRoute.SYSTEM_GAMES) { entry ->
                         val metaSystemId = entry.arguments?.getString("metaSystemId")
+                        if (consoleLayout) {
+                            val metaSystem = MetaSystemID.valueOf(metaSystemId!!)
+                            val gamesViewModel: GamesViewModel =
+                                viewModel(factory = GamesViewModel.Factory(retrogradeDb, metaSystem))
+                            ConsoleGameListScreen(
+                                title = stringResource(metaSystem.titleResId),
+                                games = gamesViewModel.games.collectAsLazyPagingItems(),
+                                onGameClick = onGameClick,
+                                onGameLongClick = onGameLongClick,
+                                onGameFavoriteToggle = onGameFavoriteToggle,
+                                onBack = { navController.popBackStack() },
+                            )
+                            return@composable
+                        }
                         GamesScreen(
                             modifier = Modifier.padding(padding),
                             viewModel =
@@ -519,3 +550,5 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
         }
     }
 }
+
+private val CONSOLE_FULL_SCREEN_ROUTES = setOf(MainRoute.HOME, MainRoute.SYSTEM_GAMES, MainRoute.FAVORITES)
