@@ -85,6 +85,9 @@ interface GameDao {
     @Update
     fun update(games: List<Game>)
 
+    @Query("SELECT * FROM games WHERE fileUri IN (:fileUris)")
+    fun selectByFileUris(fileUris: List<String>): List<Game>
+
     // Single column updates. Writing whole rows from stale Game snapshots would overwrite concurrent changes.
 
     @Query("UPDATE games SET isFavorite = :isFavorite WHERE id = :id")

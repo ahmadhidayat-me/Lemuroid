@@ -70,6 +70,16 @@ class BiosManager(private val directoriesManager: DirectoriesManager) {
             getBiosInfo()
         }
 
+    /** Cheap check, done before reading a file entirely to compute its CRC. */
+    fun couldBeBios(
+        fileName: String,
+        size: Long,
+    ): Boolean {
+        return size in 1..MAX_BIOS_SIZE_BYTES || nameLookup.containsKey(fileName)
+    }
+
+    fun couldBeBiosName(fileName: String): Boolean = nameLookup.containsKey(fileName)
+
     fun tryAddBiosAfter(
         storageFile: StorageFile,
         inputStream: InputStream,
@@ -102,6 +112,9 @@ class BiosManager(private val directoriesManager: DirectoriesManager) {
     data class BiosInfo(val detected: List<Bios>, val notDetected: List<Bios>)
 
     companion object {
+        // The largest supported BIOS is 512KB (PlayStation). Leave room for zipped or padded dumps.
+        private const val MAX_BIOS_SIZE_BYTES = 4L * 1024 * 1024
+
         private val SUPPORTED_BIOS =
             listOf(
                 Bios(

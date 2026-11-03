@@ -15,6 +15,7 @@ class GameSearchDao(private val internalDao: Internal) {
         override fun onCreate(db: SupportSQLiteDatabase) {
             super.onCreate(db)
             MIGRATION.migrate(db)
+            createFtsUpdateTriggers(db)
         }
     }
 
@@ -65,6 +66,30 @@ class GameSearchDao(private val internalDao: Internal) {
     }
 
     companion object {
+        /**
+         * The search index only depends on the displayed name, so it's only refreshed when it changes. Updating it on
+         * any change (favorites, last played, every game on every library scan) was a significant cost.
+         */
+        internal fun createFtsUpdateTriggers(database: SupportSQLiteDatabase) {
+            database.execSQL("DROP TRIGGER IF EXISTS games_bu")
+            database.execSQL("DROP TRIGGER IF EXISTS games_au")
+            database.execSQL(
+                """
+                CREATE TRIGGER games_bu BEFORE UPDATE OF title, customName ON games BEGIN
+                  DELETE FROM fts_games WHERE docid = old.id;
+                END;
+                """.trimIndent(),
+            )
+            database.execSQL(
+                """
+                CREATE TRIGGER games_au AFTER UPDATE OF title, customName ON games BEGIN
+                  INSERT INTO fts_games(docid, title)
+                  VALUES(new.id, COALESCE(new.customName, new.title));
+                END;
+                """.trimIndent(),
+            )
+        }
+
         internal fun migrateFtsForVersion10(database: SupportSQLiteDatabase) {
             database.execSQL("DROP TRIGGER IF EXISTS games_bu")
             database.execSQL("DROP TRIGGER IF EXISTS games_bd")

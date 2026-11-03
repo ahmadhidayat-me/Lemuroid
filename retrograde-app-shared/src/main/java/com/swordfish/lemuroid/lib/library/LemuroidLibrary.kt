@@ -94,22 +94,40 @@ class LemuroidLibrary(
         startedAtMs: Long,
         gameMetadata: GameMetadataProvider,
     ) = flow<Unit> {
-        val entries = batch.map { fetchEntriesFromDatabase(it) }
+        val entries = fetchEntriesFromDatabase(batch)
 
         val existingEntries = entries.filterIsInstance<ScanEntry.GameFile>()
         handleExistingEntries(existingEntries, startedAtMs)
 
         val newEntries =
             entries.filterIsInstance<ScanEntry.File>()
+                .filterNot { isNeverAGame(it.file) }
                 .map { buildEntryFromMetadata(it.file, provider, gameMetadata, startedAtMs) }
 
         handleNewEntries(newEntries, startedAtMs, provider)
     }
 
-    private fun fetchEntriesFromDatabase(storageFile: GroupedStorageFiles): ScanEntry {
-        Timber.d("Retrieving scan entry for uri: ${storageFile.primaryFile}")
-        val game = retrogradedb.gameDao().selectByFileUri(storageFile.primaryFile.uri.toString())
-        return buildScanEntry(storageFile, game)
+    /**
+     * Saves, screenshots and documents often sit next to roms. They are never stored, so without this check they were
+     * opened and looked up in the metadata database on every scan (~100ms each).
+     */
+    private fun isNeverAGame(files: GroupedStorageFiles): Boolean {
+        val file = files.primaryFile
+        if (files.dataFiles.isNotEmpty() || biosManager.couldBeBiosName(file.name)) return false
+        val extension = file.name.substringAfterLast('.', "").lowercase()
+        return extension in NON_GAME_EXTENSIONS || NUMBERED_STATE_EXTENSION.matches(extension)
+    }
+
+    /** One query per batch instead of one per file. */
+    private fun fetchEntriesFromDatabase(storageFiles: List<GroupedStorageFiles>): List<ScanEntry> {
+        val gamesByUri =
+            storageFiles
+                .map { it.primaryFile.uri.toString() }
+                .chunked(MAX_SQL_VARIABLES)
+                .flatMap { retrogradedb.gameDao().selectByFileUris(it) }
+                .associateBy { it.fileUri }
+
+        return storageFiles.map { buildScanEntry(it, gamesByUri[it.primaryFile.uri.toString()]) }
     }
 
     private fun buildScanEntry(
@@ -225,14 +243,16 @@ class LemuroidLibrary(
         files: List<BaseStorageFile>,
         startedAtMs: Long,
     ) {
-        files.forEach { baseStorageFile ->
-            val storageFile = safeStorageFile(provider, baseStorageFile)
-            val inputStream = storageFile?.uri?.let { provider.getInputStream(it) }
-
-            if (storageFile != null && inputStream != null) {
-                biosManager.tryAddBiosAfter(storageFile, inputStream, startedAtMs)
+        // Unknown files are not stored, so they come back on every scan. Parsing them means reading them entirely
+        // to compute their CRC, which is only worth it for files that could actually be a BIOS.
+        files
+            .filter { biosManager.couldBeBios(it.name, it.size) }
+            .forEach { baseStorageFile ->
+                val storageFile = safeStorageFile(provider, baseStorageFile) ?: return@forEach
+                provider.getInputStream(storageFile.uri)?.use { inputStream ->
+                    biosManager.tryAddBiosAfter(storageFile, inputStream, startedAtMs)
+                }
             }
-        }
     }
 
     private suspend fun buildEntryFromMetadata(
@@ -347,6 +367,18 @@ class LemuroidLibrary(
     companion object {
         // We batch database updates to avoid unnecessary UI updates.
         const val MAX_BUFFER_SIZE = 200
+
+        // SQLite limits the number of bound parameters per statement (999 on older versions).
+        private const val MAX_SQL_VARIABLES = 900
+
+        private val NON_GAME_EXTENSIONS =
+            setOf(
+                "srm", "sav", "state", "auto", "rtc",
+                "png", "jpg", "jpeg", "webp", "gif", "bmp",
+                "txt", "nfo", "html", "htm", "pdf", "torrent", "xml", "json",
+            ) - GameSystem.getSupportedExtensions().toSet()
+
+        private val NUMBERED_STATE_EXTENSION = Regex("state[0-9]+")
         const val MAX_TIME = 5000
     }
 }

@@ -310,15 +310,16 @@ private fun SystemPage(
     size: Dp,
     onClick: () -> Unit,
 ) {
-    val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-    val fraction = pageOffset.coerceIn(0f, 1f)
-
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         ElevatedCard(
             modifier =
                 Modifier
                     .size(size)
                     .graphicsLayer {
+                        // Read the scroll position here, in the draw phase, so swiping doesn't recompose every page
+                        // on every frame.
+                        val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                        val fraction = pageOffset.absoluteValue.coerceIn(0f, 1f)
                         scaleX = 1f - fraction * 0.2f
                         scaleY = 1f - fraction * 0.2f
                         alpha = 1f - fraction * 0.5f

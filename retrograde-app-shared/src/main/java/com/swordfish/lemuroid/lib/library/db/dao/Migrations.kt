@@ -84,4 +84,11 @@ object Migrations {
                 )
             }
         }
+
+    val VERSION_12_13: Migration =
+        object : Migration(12, 13) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                GameSearchDao.createFtsUpdateTriggers(database)
+            }
+        }
 }

@@ -21,7 +21,7 @@ package com.swordfish.lemuroid.common.kotlin
 
 import android.util.AtomicFile
 import androidx.documentfile.provider.DocumentFile
-import java.io.ByteArrayInputStream
+import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileNotFoundException
@@ -36,6 +36,7 @@ import java.util.zip.ZipInputStream
 
 private const val CRC32_BYTE_ARRAY_SIZE = 16 * 1024
 private const val GZIP_INPUT_STREAM_BUFFER_SIZE = 8 * 1024
+private const val COMPRESSED_WRITE_BUFFER_SIZE = 64 * 1024
 
 fun InputStream.calculateCrc32(): String =
     this.use { fileStream ->
@@ -108,12 +109,17 @@ private fun readBytesUncompressedStream(inputStream: InputStream): ByteArray =
         return os.toByteArray()
     }
 
+/*
+ * AtomicFile.finishWrite() fsyncs and closes the stream itself. Closing it before (e.g. with use { }) makes the
+ * fsync silently fail, so a crash right after the rename could leave an empty or truncated file.
+ */
+
 /** Write bytes to file using AtomicFile to prevent corruption. */
 fun File.writeBytesAtomic(data: ByteArray) {
     val atomicFile = AtomicFile(this)
     val outputStream = atomicFile.startWrite()
     try {
-        outputStream.use { it.write(data) }
+        outputStream.write(data)
         atomicFile.finishWrite(outputStream)
     } catch (e: Throwable) {
         atomicFile.failWrite(outputStream)
@@ -132,7 +138,9 @@ fun File.writeTextAtomic(text: String) {
     val atomicFile = AtomicFile(this)
     val outputStream = atomicFile.startWrite()
     try {
-        outputStream.writer().use { it.write(text) }
+        val writer = outputStream.writer()
+        writer.write(text)
+        writer.flush()
         atomicFile.finishWrite(outputStream)
     } catch (e: Throwable) {
         atomicFile.failWrite(outputStream)
@@ -145,11 +153,12 @@ fun File.writeBytesCompressedAtomic(array: ByteArray) {
     val atomicFile = AtomicFile(this)
     val outputStream = atomicFile.startWrite()
     try {
-        ByteArrayInputStream(array).use { input ->
-            GZIPOutputStream(outputStream).use { usedOutput ->
-                input.copyTo(usedOutput)
-            }
-        }
+        // Buffered, so that large states don't turn into thousands of tiny writes (slow on FUSE storage).
+        val bufferedOutput = BufferedOutputStream(outputStream, COMPRESSED_WRITE_BUFFER_SIZE)
+        val gzipOutput = GZIPOutputStream(bufferedOutput, COMPRESSED_WRITE_BUFFER_SIZE)
+        gzipOutput.write(array)
+        gzipOutput.finish()
+        bufferedOutput.flush()
         atomicFile.finishWrite(outputStream)
     } catch (e: Throwable) {
         atomicFile.failWrite(outputStream)
