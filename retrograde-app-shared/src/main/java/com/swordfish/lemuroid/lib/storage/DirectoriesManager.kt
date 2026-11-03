@@ -110,6 +110,10 @@ class DirectoriesManager(private val appContext: Context) {
             if (!source.renameTo(destination)) {
                 val tmpFile = File(destination.parentFile, "${destination.name}.tmp")
                 source.copyTo(tmpFile, overwrite = true)
+                // Timestamps drive SavesCoherencyEngine and save sync, so they must survive the copy.
+                if (!tmpFile.setLastModified(source.lastModified())) {
+                    Timber.w("Cannot preserve last modified time for $source")
+                }
                 if (!tmpFile.renameTo(destination)) error("Cannot rename $tmpFile")
                 source.delete()
             }
