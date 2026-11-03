@@ -89,10 +89,13 @@ abstract class BaseGameActivity : ImmersiveActivity() {
     private val startGameTime = System.currentTimeMillis()
     private var finishTriggered = false
 
+    // Saves scheduled in background and the process termination rely on GameService, so it must be running.
+    private var gameServiceStarted = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setUpExceptionsHandler()
-        GameService.startService(applicationContext, intent)
+        gameServiceStarted = GameService.startService(applicationContext, intent)
         game = intent.getSerializableExtra(EXTRA_GAME) as Game
         systemCoreConfig = intent.getSerializableExtra(EXTRA_SYSTEM_CORE_CONFIG) as SystemCoreConfig
         system = GameSystem.findById(game.systemId)
@@ -341,6 +344,13 @@ abstract class BaseGameActivity : ImmersiveActivity() {
 
     open fun onFinishTriggered() {
         finishTriggered = true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!gameServiceStarted) {
+            gameServiceStarted = GameService.startService(applicationContext, intent)
+        }
     }
 
     override fun onStop() {

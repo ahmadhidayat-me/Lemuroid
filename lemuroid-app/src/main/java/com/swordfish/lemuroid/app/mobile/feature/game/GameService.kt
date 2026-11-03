@@ -76,15 +76,23 @@ class GameService : DaggerService() {
 
         private val tasks = Channel<GameProcessTask>(capacity = Channel.BUFFERED)
 
+        /**
+         * Returns false when Android refuses to start the service, which happens if the game activity is created
+         * while the app is in background (e.g. the screen is off). Callers should retry once in foreground.
+         */
         fun startService(
             context: Context,
             gameActivityIntent: Intent,
-        ) {
-            context.startService(
-                Intent(context, GameService::class.java).apply {
-                    putExtra(EXTRA_GAME_ACTIVITY_INTENT, gameActivityIntent)
-                },
-            )
+        ): Boolean {
+            return runCatching {
+                context.startService(
+                    Intent(context, GameService::class.java).apply {
+                        putExtra(EXTRA_GAME_ACTIVITY_INTENT, gameActivityIntent)
+                    },
+                )
+            }
+                .onFailure { Timber.w(it, "Cannot start GameService now") }
+                .isSuccess
         }
 
         fun schedule(task: suspend () -> Unit) {
