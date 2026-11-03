@@ -231,9 +231,18 @@
     <string name="viewport_alignment_names_top">Top</string>
     <string name="settings_category_appearance">Appearance</string>
     <string name="settings_title_app_theme">Theme</string>
-    <string name="app_theme_names_default">Default (system colors)</string>
-    <string name="app_theme_names_retro">Retro (amber)</string>
+    <string name="app_theme_names_dark">Dark</string>
     <string name="app_theme_names_light">Light</string>
+    <string name="app_theme_names_retro">Retro</string>
+    <string name="app_theme_names_switch">Switch</string>
+    <string name="app_theme_names_8bit">8-bit</string>
+    <string name="settings_title_app_layout">Layout</string>
+    <string name="app_layout_names_default">Default</string>
+    <string name="app_layout_names_console">Console</string>
+    <string name="console_layout_header">Choose a system</string>
+    <string name="console_layout_hint_open">Open</string>
+    <string name="console_layout_hint_select">Select</string>
+    <string name="console_layout_hint_menu">Menu</string>
     <string name="viewport_alignment_names_center">Center</string>
     <string name="viewport_alignment_names_bottom">Bottom</string>
 

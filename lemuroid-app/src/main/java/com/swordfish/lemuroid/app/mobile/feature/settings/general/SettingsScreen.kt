@@ -13,6 +13,7 @@ import androidx.navigation.NavController
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.main.MainRoute
 import com.swordfish.lemuroid.app.mobile.feature.main.navigateToRoute
+import com.swordfish.lemuroid.app.mobile.shared.compose.ui.LemuroidAppLayout
 import com.swordfish.lemuroid.app.mobile.shared.compose.ui.LemuroidAppTheme
 import com.swordfish.lemuroid.app.shared.library.LibraryIndexScheduler
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidCardSettingsGroup
@@ -144,11 +145,21 @@ private fun AppearanceSettings() {
             state =
                 indexPreferenceState(
                     R.string.pref_key_app_theme,
-                    LemuroidAppTheme.DEFAULT.key,
+                    LemuroidAppTheme.DARK.key,
                     stringListResource(R.array.pref_key_app_theme_values).toList(),
                 ),
             title = { Text(text = stringResource(id = R.string.settings_title_app_theme)) },
             items = stringListResource(R.array.pref_key_app_theme_display_names),
+        )
+        LemuroidSettingsList(
+            state =
+                indexPreferenceState(
+                    R.string.pref_key_app_layout,
+                    LemuroidAppLayout.DEFAULT.key,
+                    stringListResource(R.array.pref_key_app_layout_values).toList(),
+                ),
+            title = { Text(text = stringResource(id = R.string.settings_title_app_layout)) },
+            items = stringListResource(R.array.pref_key_app_layout_display_names),
         )
     }
 }

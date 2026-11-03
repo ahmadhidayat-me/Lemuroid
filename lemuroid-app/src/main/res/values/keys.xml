@@ -30,6 +30,7 @@
     <string name="pref_key_hd_mode" translatable="false">hd_mode</string>
     <string name="pref_key_viewport_alignment" translatable="false">viewport_alignment</string>
     <string name="pref_key_app_theme" translatable="false">app_theme</string>
+    <string name="pref_key_app_layout" translatable="false">app_layout</string>
 
     <string-array translatable="false" name="pref_key_haptic_feedback_mode_values">
         <item>none</item>
@@ -67,15 +68,30 @@
 
     <!-- Must match LemuroidAppTheme keys. -->
     <string-array translatable="false" name="pref_key_app_theme_values">
-        <item>default</item>
-        <item>retro</item>
+        <item>dark</item>
         <item>light</item>
+        <item>retro</item>
+        <item>switch</item>
+        <item>8bit</item>
     </string-array>
 
     <string-array translatable="false" name="pref_key_app_theme_display_names">
-        <item>@string/app_theme_names_default</item>
-        <item>@string/app_theme_names_retro</item>
+        <item>@string/app_theme_names_dark</item>
         <item>@string/app_theme_names_light</item>
+        <item>@string/app_theme_names_retro</item>
+        <item>@string/app_theme_names_switch</item>
+        <item>@string/app_theme_names_8bit</item>
+    </string-array>
+
+    <!-- Must match LemuroidAppLayout keys. -->
+    <string-array translatable="false" name="pref_key_app_layout_values">
+        <item>default</item>
+        <item>console</item>
+    </string-array>
+
+    <string-array translatable="false" name="pref_key_app_layout_display_names">
+        <item>@string/app_layout_names_default</item>
+        <item>@string/app_layout_names_console</item>
     </string-array>
 
     <string-array translatable="false" name="pref_key_viewport_alignment_display_names">

@@ -7,13 +7,27 @@ import androidx.compose.ui.graphics.Color
 
 /** Themes selectable for the main menu. Keys are persisted in preferences, so they must not change. */
 enum class LemuroidAppTheme(val key: String, val isDark: Boolean) {
-    DEFAULT("default", true),
-    RETRO("retro", true),
+    DARK("dark", true),
     LIGHT("light", false),
+    RETRO("retro", true),
+    SWITCH("switch", true),
+    EIGHT_BIT("8bit", false),
     ;
 
     companion object {
-        fun fromKey(key: String?): LemuroidAppTheme = entries.firstOrNull { it.key == key } ?: DEFAULT
+        // "default" was the dynamic color theme of the first version, which has been replaced by Dark.
+        fun fromKey(key: String?): LemuroidAppTheme = entries.firstOrNull { it.key == key } ?: DARK
+    }
+}
+
+/** Layouts selectable for the main menu. Keys are persisted in preferences, so they must not change. */
+enum class LemuroidAppLayout(val key: String) {
+    DEFAULT("default"),
+    CONSOLE("console"),
+    ;
+
+    companion object {
+        fun fromKey(key: String?): LemuroidAppLayout = entries.firstOrNull { it.key == key } ?: DEFAULT
     }
 }
 
@@ -97,4 +111,132 @@ internal val DaylightColorScheme: ColorScheme =
         surfaceContainer = Color(0xFFECEFE7),
         surfaceContainerHigh = Color(0xFFE7E9E2),
         surfaceContainerHighest = Color(0xFFE1E3DC),
+    )
+
+// Neutral greys with a white accent, identical on every device.
+internal val NeutralDarkColorScheme: ColorScheme =
+    darkColorScheme(
+        primary = Color(0xFFE6E6E6),
+        onPrimary = Color(0xFF1C1C1C),
+        primaryContainer = Color(0xFF3D3D3D),
+        onPrimaryContainer = Color(0xFFF2F2F2),
+        inversePrimary = Color(0xFF5E5E5E),
+        secondary = Color(0xFFC4C4C4),
+        onSecondary = Color(0xFF2A2A2A),
+        secondaryContainer = Color(0xFF424242),
+        onSecondaryContainer = Color(0xFFE6E6E6),
+        tertiary = Color(0xFFB0B0B0),
+        onTertiary = Color(0xFF262626),
+        tertiaryContainer = Color(0xFF3A3A3A),
+        onTertiaryContainer = Color(0xFFE0E0E0),
+        background = Color(0xFF121212),
+        onBackground = Color(0xFFE6E6E6),
+        surface = Color(0xFF121212),
+        onSurface = Color(0xFFE6E6E6),
+        surfaceVariant = Color(0xFF444444),
+        onSurfaceVariant = Color(0xFFC7C7C7),
+        surfaceTint = Color(0xFFE6E6E6),
+        inverseSurface = Color(0xFFE6E6E6),
+        inverseOnSurface = Color(0xFF2E2E2E),
+        error = Color(0xFFFFB4AB),
+        onError = Color(0xFF690005),
+        errorContainer = Color(0xFF93000A),
+        onErrorContainer = Color(0xFFFFDAD6),
+        outline = Color(0xFF8F8F8F),
+        outlineVariant = Color(0xFF444444),
+        scrim = Color(0xFF000000),
+        surfaceBright = Color(0xFF383838),
+        surfaceDim = Color(0xFF121212),
+        surfaceContainerLowest = Color(0xFF0C0C0C),
+        surfaceContainerLow = Color(0xFF1A1A1A),
+        surfaceContainer = Color(0xFF1E1E1E),
+        surfaceContainerHigh = Color(0xFF282828),
+        surfaceContainerHighest = Color(0xFF333333),
+    )
+
+// Dark grey with neon red and neon blue accents, like a modern hybrid console UI.
+internal val SwitchColorScheme: ColorScheme =
+    darkColorScheme(
+        primary = Color(0xFFFF5A65),
+        onPrimary = Color(0xFF410008),
+        primaryContainer = Color(0xFF92001F),
+        onPrimaryContainer = Color(0xFFFFDADB),
+        inversePrimary = Color(0xFFBF0031),
+        secondary = Color(0xFF00C3E3),
+        onSecondary = Color(0xFF00363F),
+        secondaryContainer = Color(0xFF004F5C),
+        onSecondaryContainer = Color(0xFF9EEFFF),
+        tertiary = Color(0xFFE6E95A),
+        onTertiary = Color(0xFF323300),
+        tertiaryContainer = Color(0xFF494B00),
+        onTertiaryContainer = Color(0xFFF0F378),
+        background = Color(0xFF1E1E1E),
+        onBackground = Color(0xFFEDEDED),
+        surface = Color(0xFF1E1E1E),
+        onSurface = Color(0xFFEDEDED),
+        surfaceVariant = Color(0xFF4A4A4A),
+        onSurfaceVariant = Color(0xFFCFCFCF),
+        surfaceTint = Color(0xFFFF5A65),
+        inverseSurface = Color(0xFFEDEDED),
+        inverseOnSurface = Color(0xFF303030),
+        error = Color(0xFFFFB4AB),
+        onError = Color(0xFF690005),
+        errorContainer = Color(0xFF93000A),
+        onErrorContainer = Color(0xFFFFDAD6),
+        outline = Color(0xFF969696),
+        outlineVariant = Color(0xFF4A4A4A),
+        scrim = Color(0xFF000000),
+        surfaceBright = Color(0xFF444444),
+        surfaceDim = Color(0xFF1E1E1E),
+        surfaceContainerLowest = Color(0xFF171717),
+        surfaceContainerLow = Color(0xFF262626),
+        surfaceContainer = Color(0xFF2B2B2B),
+        surfaceContainerHigh = Color(0xFF353535),
+        surfaceContainerHighest = Color(0xFF404040),
+    )
+
+// The four shades of green of early monochrome handheld screens.
+private val EightBitDarkest = Color(0xFF0F380F)
+private val EightBitDark = Color(0xFF306230)
+private val EightBitLight = Color(0xFF8BAC0F)
+private val EightBitLightest = Color(0xFF9BBC0F)
+
+internal val EightBitColorScheme: ColorScheme =
+    lightColorScheme(
+        primary = EightBitDarkest,
+        onPrimary = EightBitLightest,
+        primaryContainer = EightBitDark,
+        onPrimaryContainer = EightBitLightest,
+        inversePrimary = EightBitLight,
+        secondary = EightBitDark,
+        onSecondary = EightBitLightest,
+        secondaryContainer = EightBitLight,
+        onSecondaryContainer = EightBitDarkest,
+        tertiary = EightBitDark,
+        onTertiary = EightBitLightest,
+        tertiaryContainer = EightBitLight,
+        onTertiaryContainer = EightBitDarkest,
+        background = EightBitLightest,
+        onBackground = EightBitDarkest,
+        surface = EightBitLightest,
+        onSurface = EightBitDarkest,
+        surfaceVariant = EightBitLight,
+        onSurfaceVariant = EightBitDarkest,
+        surfaceTint = EightBitDark,
+        inverseSurface = EightBitDarkest,
+        inverseOnSurface = EightBitLightest,
+        error = Color(0xFF7A1F1F),
+        onError = EightBitLightest,
+        errorContainer = Color(0xFFD9B3A6),
+        onErrorContainer = Color(0xFF3B0A0A),
+        outline = EightBitDark,
+        outlineVariant = EightBitLight,
+        scrim = Color(0xFF000000),
+        surfaceBright = EightBitLightest,
+        surfaceDim = EightBitLight,
+        surfaceContainerLowest = EightBitLightest,
+        surfaceContainerLow = Color(0xFF96B70F),
+        surfaceContainer = Color(0xFF91B20F),
+        surfaceContainerHigh = EightBitLight,
+        surfaceContainerHighest = Color(0xFF7E9E0E),
     )

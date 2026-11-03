@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.edit
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -27,6 +28,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fredporciuncula.flow.preferences.FlowSharedPreferences
 import com.swordfish.lemuroid.R
+import com.swordfish.lemuroid.app.mobile.feature.console.ConsoleHomeScreen
+import com.swordfish.lemuroid.app.mobile.feature.console.ConsoleMenuEntry
 import com.swordfish.lemuroid.app.mobile.feature.favorites.FavoritesScreen
 import com.swordfish.lemuroid.app.mobile.feature.favorites.FavoritesViewModel
 import com.swordfish.lemuroid.app.mobile.feature.games.GamesScreen
@@ -51,6 +54,7 @@ import com.swordfish.lemuroid.app.mobile.feature.shortcuts.ShortcutsGenerator
 import com.swordfish.lemuroid.app.mobile.feature.systems.MetaSystemsScreen
 import com.swordfish.lemuroid.app.mobile.feature.systems.MetaSystemsViewModel
 import com.swordfish.lemuroid.app.mobile.shared.compose.ui.AppTheme
+import com.swordfish.lemuroid.app.mobile.shared.compose.ui.LemuroidAppLayout
 import com.swordfish.lemuroid.app.mobile.shared.compose.ui.LemuroidAppTheme
 import com.swordfish.lemuroid.app.shared.GameInteractor
 import com.swordfish.lemuroid.app.shared.game.BaseGameActivity
@@ -123,32 +127,56 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
             reviewManager.initialize(applicationContext)
         }
 
+        migrateAppearancePreferences()
+
         setContent {
             val navController = rememberNavController()
             MainScreen(navController)
         }
     }
 
+    /** Stored values that are no longer offered (e.g. the old "default" theme) would break the settings lists. */
+    private fun migrateAppearancePreferences() {
+        val preferences = SharedPreferencesHelper.getSharedPreferences(applicationContext)
+        val themeKey = getString(R.string.pref_key_app_theme)
+        val layoutKey = getString(R.string.pref_key_app_layout)
+        val storedTheme = preferences.getString(themeKey, null)
+        val storedLayout = preferences.getString(layoutKey, null)
+
+        preferences.edit {
+            if (storedTheme != null && LemuroidAppTheme.entries.none { it.key == storedTheme }) {
+                putString(themeKey, LemuroidAppTheme.fromKey(storedTheme).key)
+            }
+            if (storedLayout != null && LemuroidAppLayout.entries.none { it.key == storedLayout }) {
+                putString(layoutKey, LemuroidAppLayout.fromKey(storedLayout).key)
+            }
+        }
+    }
+
+    /** Observes a string preference. The current value is read synchronously so the first frame is already right. */
     @Composable
-    private fun selectedAppTheme(): LemuroidAppTheme {
+    private fun <T> stringPreferenceState(
+        keyId: Int,
+        parse: (String?) -> T,
+    ): T {
         val preferences = remember { SharedPreferencesHelper.getSharedPreferences(applicationContext) }
-        val key = stringResource(R.string.pref_key_app_theme)
-        val themes =
+        val key = stringResource(keyId)
+        val values =
             remember(key) {
                 FlowSharedPreferences(preferences)
-                    .getString(key, LemuroidAppTheme.DEFAULT.key)
+                    .getNullableString(key, null)
                     .asFlow()
-                    .map { LemuroidAppTheme.fromKey(it) }
+                    .map(parse)
             }
-        // Read the current value synchronously, so the first frame already uses the right theme.
-        val initial = remember(key) { LemuroidAppTheme.fromKey(preferences.getString(key, null)) }
-        return themes.collectAsState(initial).value
+        val initial = remember(key) { parse(preferences.getString(key, null)) }
+        return values.collectAsState(initial).value
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun MainScreen(navController: NavHostController) {
-        val appTheme = selectedAppTheme()
+        val appTheme = stringPreferenceState(R.string.pref_key_app_theme, LemuroidAppTheme::fromKey)
+        val appLayout = stringPreferenceState(R.string.pref_key_app_layout, LemuroidAppLayout::fromKey)
 
         // Status and navigation bar icons must stay readable on light themes.
         LaunchedEffect(appTheme) {
@@ -204,17 +232,26 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                     .collectAsState(MainViewModel.UiState())
                     .value
 
+            // The console layout home is a full screen carousel with its own menu instead of the app bars.
+            val consoleHome = appLayout == LemuroidAppLayout.CONSOLE && currentRoute == MainRoute.HOME
+
             Scaffold(
                 topBar = {
-                    MainTopBar(
-                        currentRoute = currentRoute,
-                        navController = navController,
-                        onHelpPressed = onHelpPressed,
-                        mainUIState = mainUIState,
-                        onUpdateQueryString = { mainViewModel.changeQueryString(it) },
-                    )
+                    if (!consoleHome) {
+                        MainTopBar(
+                            currentRoute = currentRoute,
+                            navController = navController,
+                            onHelpPressed = onHelpPressed,
+                            mainUIState = mainUIState,
+                            onUpdateQueryString = { mainViewModel.changeQueryString(it) },
+                        )
+                    }
                 },
-                bottomBar = { MainNavigationBar(currentRoute, navController) },
+                bottomBar = {
+                    if (!consoleHome) {
+                        MainNavigationBar(currentRoute, navController)
+                    }
+                },
             ) { padding ->
                 NavHost(
                     modifier = Modifier.fillMaxSize(),
@@ -222,6 +259,25 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                     startDestination = MainRoute.HOME.route,
                 ) {
                     composable(MainRoute.HOME) {
+                        if (appLayout == LemuroidAppLayout.CONSOLE) {
+                            val systemsViewModel: MetaSystemsViewModel =
+                                viewModel(factory = MetaSystemsViewModel.Factory(retrogradeDb, applicationContext))
+                            ConsoleHomeScreen(
+                                systems = systemsViewModel.availableMetaSystems.collectAsState(emptyList()).value,
+                                onSystemSelected = { navController.navigate("systems/${it.metaSystem.name}") },
+                                onMenuEntrySelected = { entry ->
+                                    val route =
+                                        when (entry) {
+                                            ConsoleMenuEntry.FAVORITES -> MainRoute.FAVORITES
+                                            ConsoleMenuEntry.SEARCH -> MainRoute.SEARCH
+                                            ConsoleMenuEntry.SYSTEMS -> MainRoute.SYSTEMS
+                                            ConsoleMenuEntry.SETTINGS -> MainRoute.SETTINGS
+                                        }
+                                    navController.navigateToRoute(route)
+                                },
+                            )
+                            return@composable
+                        }
                         HomeScreen(
                             modifier = Modifier.padding(padding),
                             viewModel =
